@@ -124,11 +124,25 @@ pub fn intrinsic_size_hwp(script: &str, font_size: u32) -> (u32, u32) {
     )
 }
 
+/// 만들거나 고친 수식의 저장 상자는 **그 수식을 그리는 layout** 으로 잰다.
+///
+/// `intrinsic_size_hwp` 는 글꼴 이름을 모르는 일반 layout(`EqLayout::new`)이라, HYhwpEQ
+/// 수식을 그리는 `EqLayout::for_equation` 보다 좁게 잰다(`f(x)=(x+2)(2x^2 -x-2)` 11274 대
+/// 12100). 줄 흐름은 저장 폭만큼 전진하므로 그 차이만큼 뒤 글자가 수식 끝을 덮었다.
+pub(crate) fn authored_size_hwp(equation: &crate::model::control::Equation) -> (u32, u32) {
+    let ast = document_script::parse(equation);
+    let layout = layout::EqLayout::for_equation(equation, super::DEFAULT_DPI).layout(&ast);
+    (
+        super::px_to_hwpunit(layout.width, super::DEFAULT_DPI).max(1) as u32,
+        super::px_to_hwpunit(layout.height, super::DEFAULT_DPI).max(1) as u32,
+    )
+}
+
 /// Legacy edits must produce the logical HFT frame used by their painter.
-/// The modern editor's existing sizing contract remains unchanged.
+/// Modern edits use the same painter-consistent frame as insertion (`authored_size_hwp`).
 pub(crate) fn edited_size_hwp(equation: &crate::model::control::Equation) -> (u32, u32) {
     if !uses_legacy_hft_metrics(equation) {
-        return intrinsic_size_hwp(&equation.script, equation.font_size);
+        return authored_size_hwp(equation);
     }
     let ast = parser::EqParser::new(tokenizer::tokenize(&equation.script)).parse();
     let layout = layout::EqLayout::for_equation(equation, super::DEFAULT_DPI).layout(&ast);

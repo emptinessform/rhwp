@@ -538,7 +538,6 @@ impl DocumentCore {
             )));
         }
 
-        let (width, height) = crate::renderer::equation::intrinsic_size_hwp(script, font_size);
         let equation_order = self.document.sections[section_idx]
             .paragraphs
             .iter()
@@ -563,7 +562,7 @@ impl DocumentCore {
                 HwpError::RenderError("수식 instance ID를 더 이상 배정할 수 없습니다.".to_string())
             })?;
         let instance_id = 0x4400_0000 | equation_instance_sequence;
-        let equation = Equation {
+        let mut equation = Equation {
             common: CommonObjAttr {
                 ctrl_id: CTRL_EQUATION,
                 // 한컴 저장본의 인라인 수식 계약: 문단 기준 위치, 절대 크기,
@@ -571,8 +570,7 @@ impl DocumentCore {
                 attr: 0x0C2A_2311,
                 numbering_type: crate::model::shape::ObjectNumberingType::Equation,
                 treat_as_char: true,
-                width,
-                height,
+                // 크기는 아래에서 글꼴까지 정한 뒤 잰다.
                 z_order: equation_order as i32,
                 margin: crate::model::Padding {
                     left: 56,
@@ -596,6 +594,10 @@ impl DocumentCore {
             font_name: "HYhwpEQ".to_string(),
             ..Default::default()
         };
+        // 저장 상자는 이 수식을 그리는 layout 으로 잰다 — 글꼴(HYhwpEQ)까지 정해진 뒤라야 한다.
+        let (width, height) = crate::renderer::equation::authored_size_hwp(&equation);
+        equation.common.width = width;
+        equation.common.height = height;
 
         self.document.sections[section_idx].raw_stream = None;
         let paragraph = &mut self.document.sections[section_idx].paragraphs[para_idx];
